@@ -1,0 +1,27 @@
+---
+title: "COVID-19 Study"
+author: "Josh Ye"
+format: pdf
+---
+
+## Read data and install libraries
+
+```{r read-data, message = F, warning = F, echo = F, echo=FALSE}
+
+library(tidyverse)
+library(broom)
+library(tidymodels)
+library(dplyr)
+library(MASS)
+library(nnet)
+library(ggfortify)
+
+install.packages("Stat2Data")
+library(Stat2Data)
+library(lme4)
+library(tidyr)
+```
+
+```{r read-data-2, message = F, warning = F,echo=FALSE}
+data <- read_csv('https://data.cdc.gov/api/views/9mfq-cb36/rows.csv?accessType=DOWNLOAD')
+```
