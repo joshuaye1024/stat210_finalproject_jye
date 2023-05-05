@@ -1,5 +1,5 @@
 ---
-title: "COVID-19 Study"
+title: "Framingham Heart Study"
 author: "Josh Ye"
 format: pdf
 ---
@@ -7,7 +7,7 @@ format: pdf
 ## Read data and install libraries
 
 ```{r read-data, message = F, warning = F, echo = F, echo=FALSE}
-
+install.packages("Stat2Data")
 library(tidyverse)
 library(broom)
 library(tidymodels)
@@ -16,12 +16,89 @@ library(MASS)
 library(nnet)
 library(ggfortify)
 
-install.packages("Stat2Data")
 library(Stat2Data)
 library(lme4)
 library(tidyr)
+install.packages("gridExtra")              
+library("gridExtra")
+library(grid)
 ```
 
 ```{r read-data-2, message = F, warning = F,echo=FALSE}
-data <- read_csv('https://data.cdc.gov/api/views/9mfq-cb36/rows.csv?accessType=DOWNLOAD')
+data <- read_csv("./framingham.csv")
 ```
+
+# Exploratory Data Analysis
+First, we take a look at the ages of individuals at risk for CHD and those not at risk. We notice that those who are at risk are older than those not at risk. 
+```{r eda-1, message = F, warning = F,echo=FALSE}
+ggplot(data, aes(x = age, y = TenYearCHD, color = factor(male), group = male)) + 
+    geom_jitter(size = 0.9, width = 0.2, height = 0.02) +
+    geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE) +
+    scale_color_manual(values = c("blue", "red")) +
+    ylab("Risk Status for CHD") +
+    xlab("Age")
+
+```
+
+Additionally, we might assume that those who have a high BMI are generally more at risk for CHD. However, we see that there may not be such a strong statistical relationship. While the median BMI for the "at risk" category is marginally higher than the "no risk" category, there are a large large amount of outliers (on the high end) for the "no risk" group.
+```{r eda-2, message = F, warning = F, echo = F}
+ggplot(data, aes(x = factor(TenYearCHD), y = BMI, group = TenYearCHD)) +
+    geom_boxplot() +
+    xlab("10-year CHD risk") +
+    ylab("BMI")
+```
+
+On the other hand, the opposite is true for Systolic Blood Pressure, where both the median and outliers (on the high end) are higher for the "at risk" group than the "no risk" group.
+```{r eda-3, message = F, warning = F,echo=FALSE}
+ggplot(data, aes(x = factor(TenYearCHD), y = sysBP, group = TenYearCHD)) +
+    geom_boxplot() +
+    xlab("10-year CHD risk") +
+    ylab("Systolic Blood Pressure")
+```
+
+## Research Question
+Our main research question will be to determine which factors are most important for predicting the Ten-Year risk level for Coronary Heart Disease based on the data provided in this dataset. We will investigate model selection and variable selection techniques, then we will thoroughly investigate the model that was produced using our chosen techniques. 
+
+## Missing Data
+Firstly, we had to determine what to do with the missing data in the model. 
+```{r missing-1, message = F, warning = F, echo=F}
+library(naniar)
+vis_miss(data)
+```
+Based on the graph above, we can see that the ```glucose``` predictor had the highest missing data rate. While this could possibly imply that there is some issue specific to measuring glucose levels which causes the data to be missing, this is hard to determine conclusively. Therefore, although it is possible that the data is MNAR, we will *not* impute data and simply continue our analysis by removing the missing data.
+```{r missing-2, message = F, warning = F, echo=F}
+data <- data[complete.cases(data), ]
+```
+
+## Variable Selection and Testing
+Here, it is important to consider what potential interactions could occur before we proceed any further. [DO SOME EXPLORATORY DATA ON THIS]
+
+Since our dependent variable, ```TenYearCHD``` is binary, this is a binary classification problem and a *logistic regression* model is best suited for this type of analysis. Furthermore, we have a few highly correlated variables. 
+```{r missing-3, message = F, warning = F, echo = F}
+head(filter(cor(data) %>%
+           as.data.frame() %>%
+           mutate(var1 = rownames(.)) %>%
+           gather(var2, value, -var1) %>%
+           arrange(desc(value)) %>%
+           group_by(value) %>%
+           filter(row_number()==1), value <1))
+```
+As we can see, ```diaBP``` and ```sysBP``` , as well as ```cigsPerday``` and ```currentSmoker``` are the two most highly correlated pairs of predictors. The method that we utilized for variable selection was stepwise backward AIC. There were two reasons why this method was chosen. Firstly, the LASSO variable selection process, with a lambda produced by k-fold cross validation, did not produce meaningfully better results, especially because the cross-validation process produced an extremely low $\lambda$ value. Secondly, by inspecting the results of backward AIC satisfactorily removing predictors that had little statistical significance in the model.
+```{r model-1, message = F, warning = F, echo = F,results = FALSE}
+data$TenYearCHD <- as.numeric(data$TenYearCHD)
+m_all <- glm(TenYearCHD ~ ., data = data, family = "binomial")
+m_none <- glm(TenYearCHD ~ 1, data = data, family = "binomial")
+stepAIC(m_all, scope = list(lower = m_none, upper = m_all),
+  data = data, direction = "backward")
+```
+
+
+The results of our backward AIC selection process is the following model: 
+```{r model-2, message = F, warning = F, echo = F}
+glm(TenYearCHD ~ male + age + cigsPerDay + prevalentStroke + 
+    prevalentHyp + totChol + sysBP + glucose, family = "binomial", 
+    data = data)
+```
+As we can see, while this refined model contains only eight predictors, most of them are statistically significant, while most of the statistically *insignificant* predictors have been dropped.  
+
+## Key Results and Findings
