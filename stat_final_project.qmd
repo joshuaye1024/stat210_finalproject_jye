@@ -28,7 +28,7 @@ library(grid)
 data <- read_csv("./framingham.csv")
 ```
 
-## Project Introduction and Predictors
+## Introduction and Data
 In this Project, we used data from the Framingham Heart Study, a long-term, ongoing cardiovascular cohor study of residents of Framingham, MA. The study began in 1948 with 5209 subjects. This dataset contains the original data, but with identifying patient information scrubbed. In the original study, individuals joined the study by accepting letters of invitation that were sent to a random sample of two of every three families, with members aged 30-59 years. Out of the 6507 original contacts, 4494 participants agreed to enter the study. 
 
 The dataset contains the following predictors: 
@@ -51,7 +51,7 @@ For the purposes of the study, as well as our own analysis, the dependant variab
 
 *```TenYearCHD```: 10 year risk of coronary heart disease CHD (binary: “1”, means “Yes”, “0” means “No”)
 
-## Research Question 
+### Research Question 
 Our main research question will be to determine which factors are most important for predicting the Ten-Year risk level for Coronary Heart Disease based on the data provided in this dataset. We will investigate model selection and variable selection techniques, then we will thoroughly investigate the model that was produced using our chosen techniques.
 
 ### Exploratory Data Analysis
@@ -95,8 +95,9 @@ Based on the graph above, we can see that the `glucose` predictor had the highes
 data <- data[complete.cases(data), ]
 ```
 
+No additional data cleaning (besides removing rows with missing data) was performed, since the column names were sufficient and the data types were ok.
 
-## Variable Selection and Assumption Testing
+## Methodology
 
 Since our dependent variable, `TenYearCHD` is binary, this is a binary classification problem and a *logistic regression* model is best suited for this type of analysis. Furthermore, we have a few highly correlated variables, namely `diaBP` and `sysBP` ($r = 0.787$), and `cigsPerDay` and `currentSmoker` ($r = 0.774$).
 
@@ -140,14 +141,14 @@ emplogitplot1(TenYearCHD ~age ,
               ngroups = 20)
 ```
 
-Furthermore, we must check the independence assumption. While all samples were taken within the town of Framingham, MA, every individual did not live in the same community; instead, letters were sent out randomly inviting famlies to participate in the study. Since the sampling was relatively random, for our purposes we may say that the independence assumption is satisfied. 
+Furthermore, we must check the independence assumption. While all samples were taken within the town of Framingham, MA, every individual did not live in the same community; instead, letters were sent out randomly inviting families to participate in the study. Since the sampling was relatively random, for our purposes we may say that the independence assumption is satisfied. 
 
 Now, we search for influential values by Cook's distance.
-```{r mode-4, message = F, warning = F, echo = F}
+```{r mode-4, message = F, warning = F, echo = F, fig.width=6,fig.height=3}
 plot(m2, which = 4, id.n = 3)
 ```
 We note that there are 3 high Cook's Distance values which we want to investigate: 
-```{r mode-5, message = F, warning = F, echo = F, results = F}
+```{r mode-5, message = F, warning = F, echo = F, results = F, fig.width=6,fig.height=5}
 m2_aug_s <- augment(m2) %>% 
     mutate(index = 1:n()) 
 m2_aug_s %>% top_n(3, .cooksd)
@@ -158,7 +159,9 @@ ggplot(m2_aug_s, aes(index, .std.resid)) +
     geom_point(aes(color = TenYearCHD), alpha = .5) +
     theme_bw()
 ```
-## Model Testing
+Furthermore, we can notice here that individuals who are *not* at risk for Coronary Heart Disease in a ten year span have standard residuals that are clustered close together. On average, there is about a 1 standard residual gap between the two groups.
+
+## Results
 Now, we perform some tests on the tests on how well we predicted. Since this is a logistic regression model, in order to interpret our model effectively, we convert the log-odds to an odds ratio. First, we use a threshold of 0.5, where a model prediction of 0.5 or above implies that the individual in question is predicted to be at risk for CHD within 10 years. In context of our investigation, the Binary Classifiers that we care most about are True Positives, True Negatives, False Positives, and False Negatives. However, we would especially like to minimize false negatives, that is, individuals who *truly* are at risk of developing CHD in the next 10 years but are missed by the model. 
 Thus, for a threshold value of 0.5 we see that there were 512 false negatives, which is a lot.
  
@@ -192,10 +195,13 @@ m2_aug %>%
     )
 ```
 
-## Results
-Now that we are confident that our model is not giving out completely garbage results, we can interpret some of our slope coefficients and answer our research question. Since our model is in log-odds, we must exponentiation the slopes in order to get the odds ratio. For instance, exponentiating the coefficient for ```male```, we note that holding all other variables constant, males have $\exp(0.553) \equiv 1.738$ times greater odds than women for acquiring Coronary Heart Disease over a 10 year span. 
+We can interpret some of our slope coefficients and answer our research question. Since our model is in log-odds, we must exponentiation the slopes in order to get the odds ratio. For instance, exponentiating the coefficient for ```male```, we note that holding all other variables constant, males have $\exp(0.553) \equiv 1.738$ times greater odds than women for acquiring Coronary Heart Disease over a 10 year span. Furthermore, in addition to age, the other categorical variables, ```prevalentStroke``` and ```prevalentHyp``` (even though they are statistically insignificant at the $\alpha = 0.05$ significance level) have a very large effect on the log-odds of being at risk for Coronary Heart Disease over a 10 year span. For instance, while every additional cigarette that is smoked per day increases your odds of being at risk for Coronary Heart Disease by about 1.02 times, having had a stroke in the past increases your odds of being at risk for CHD 2.12 times!
 
 ## Discussion
 From our model, the being at risk for acquiring Coronary Heart Disease over a ten year period is most strongly statistically associated with (based on $p$-value) being male, being older, smoking cigarettes daily, having high cholesterol, having high Systolic Blood Pressure, and having high blood sugar (glucose). Although we have showed that this model has relatively strong predictive power, there are still some possible limitations of our analysis. For instance, the coefficients were selected using backward stepwise AIC selection. Since this is a greedy algorithm, and not exhaustive, it is possible that there are better sets of predictors that were missed. Furthermore, there are also possible concerns retarding the source of data itself. Because the data was taken from one city in Massachussetts, it is possible that the lifestyle and demographic of the inidivudals of that Framington are not representative of Americans or humans as a whole, but are only locally representative of that area. 
 
 There are many possibilities for future work. Firstly, more predictors could be included. These could include other lifestyle factors, such as exercise duration, average weekly vegetable consumption, etc. that could give more insight into potential factors that could actually be associated with a lowered risk of developing Heart Disease. Secondly, the study could be expanded to different regions of the united states, to see if cultural factors, weather, or other factors play any significant role in the development of heart disease.
+
+## References and Links
+1. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5156338/
+2. https://www.kaggle.com/datasets/dileep070/heart-disease-prediction-using-logistic-regression/download?datasetVersionNumber=1
