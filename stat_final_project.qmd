@@ -28,8 +28,34 @@ library(grid)
 data <- read_csv("./framingham.csv")
 ```
 
-# Exploratory Data Analysis
-First, we take a look at the ages of individuals at risk for CHD and those not at risk. We notice that those who are at risk are older than those not at risk. 
+## Project Introduction and Predictors
+In this Project, we used data from the Framingham Heart Study, a long-term, ongoing cardiovascular cohor study of residents of Framingham, MA. The study began in 1948 with 5209 subjects. This dataset contains the original data, but with identifying patient information scrubbed. In the original study, individuals joined the study by accepting letters of invitation that were sent to a random sample of two of every three families, with members aged 30-59 years. Out of the 6507 original contacts, 4494 participants agreed to enter the study. 
+
+The dataset contains the following predictors: 
+
+* ```male```: male or female, 1 for male, 0 for female (nomial)
+* ```age```: Age of the patient; (Continuous - Although the recorded ages have been truncated to whole numbers, the concept of age is continuous)
+* ```currentSmoker```: whether or not the patient is a current smoker (Nominal)
+* ```cigsPerDay```: the number of cigarettes that the person smoked on average in one day.(can be considered continuous as one can have any number of cigarettes, even half a cigarette.)
+* ```BPmeds```: whether or not the patient was on blood pressure medication (Nominal)
+* ``prevalentStroke```: whether or not the patient had previously had a stroke (Nominal)
+* ```prevalentHyp```: whether or not the patient was hypertensive (Nominal)
+* ```diabetes```: whether or not the patient had diabetes (Nominal)
+* ```totChol```: total cholesterol level (Continuous)
+* ```sysBP```: systolic blood pressure (Continuous)
+* ```diaBP```: diastolic blood pressure (Continuous)
+* ```BMI```: Body Mass Index (Continuous)
+* ```heartRate```: heart rate (Continuous - In medical research, variables such as heart rate though in fact discrete, yet are considered continuous because of large number of possible values.)
+* ```glucose```: glucose level (Continuous)
+
+For the purposes of the study, as well as our own analysis, the dependant variable is
+
+*```TenYearCHD```: 10 year risk of coronary heart disease CHD (binary: “1”, means “Yes”, “0” means “No”)
+
+### Exploratory Data Analysis
+
+First, we take a look at the ages of individuals at risk for CHD and those not at risk. We notice that those who are at risk are older than those not at risk.
+
 ```{r eda-1, message = F, warning = F,echo=FALSE}
 ggplot(data, aes(x = age, y = TenYearCHD, color = factor(male), group = male)) + 
     geom_jitter(size = 0.9, width = 0.2, height = 0.02) +
@@ -41,6 +67,7 @@ ggplot(data, aes(x = age, y = TenYearCHD, color = factor(male), group = male)) +
 ```
 
 Additionally, we might assume that those who have a high BMI are generally more at risk for CHD. However, we see that there may not be such a strong statistical relationship. While the median BMI for the "at risk" category is marginally higher than the "no risk" category, there are a large large amount of outliers (on the high end) for the "no risk" group.
+
 ```{r eda-2, message = F, warning = F, echo = F}
 ggplot(data, aes(x = factor(TenYearCHD), y = BMI, group = TenYearCHD)) +
     geom_boxplot() +
@@ -49,6 +76,7 @@ ggplot(data, aes(x = factor(TenYearCHD), y = BMI, group = TenYearCHD)) +
 ```
 
 On the other hand, the opposite is true for Systolic Blood Pressure, where both the median and outliers (on the high end) are higher for the "at risk" group than the "no risk" group.
+
 ```{r eda-3, message = F, warning = F,echo=FALSE}
 ggplot(data, aes(x = factor(TenYearCHD), y = sysBP, group = TenYearCHD)) +
     geom_boxplot() +
@@ -56,25 +84,27 @@ ggplot(data, aes(x = factor(TenYearCHD), y = sysBP, group = TenYearCHD)) +
     ylab("Systolic Blood Pressure")
 ```
 
-## Research Question
-Our main research question will be to determine which factors are most important for predicting the Ten-Year risk level for Coronary Heart Disease based on the data provided in this dataset. We will investigate model selection and variable selection techniques, then we will thoroughly investigate the model that was produced using our chosen techniques. 
-
-## Missing Data
-Firstly, we had to determine what to do with the missing data in the model. 
+Furthermore, we investigate missingness in our model. 
 ```{r missing-1, message = F, warning = F, echo=F}
 library(naniar)
 vis_miss(data)
 ```
-Based on the graph above, we can see that the ```glucose``` predictor had the highest missing data rate. While this could possibly imply that there is some issue specific to measuring glucose levels which causes the data to be missing, this is hard to determine conclusively. Therefore, although it is possible that the data is MNAR, we will *not* impute data and simply continue our analysis by removing the missing data.
+
+Based on the graph above, we can see that the `glucose` predictor had the highest missing data rate. While this could possibly imply that there is some issue specific to measuring glucose levels which causes the data to be missing, this is hard to determine conclusively. Therefore, although it is possible that the data is MNAR, we will *not* impute data and simply continue our analysis by removing the missing data.
+
 ```{r missing-2, message = F, warning = F, echo=F}
 data <- data[complete.cases(data), ]
 ```
 
-## Variable Selection and Testing
-Here, it is important to consider what potential interactions could occur before we proceed any further. [DO SOME EXPLORATORY DATA ON THIS]
+## Research Question 
+Our main research question will be to determine which factors are most important for predicting the Ten-Year risk level for Coronary Heart Disease based on the data provided in this dataset. We will investigate model selection and variable selection techniques, then we will thoroughly investigate the model that was produced using our chosen techniques.
 
-Since our dependent variable, ```TenYearCHD``` is binary, this is a binary classification problem and a *logistic regression* model is best suited for this type of analysis. Furthermore, we have a few highly correlated variables. 
-```{r missing-3, message = F, warning = F, echo = F}
+
+## Variable Selection and Assumption Testing
+
+Since our dependent variable, `TenYearCHD` is binary, this is a binary classification problem and a *logistic regression* model is best suited for this type of analysis. Furthermore, we have a few highly correlated variables, namely `diaBP` and `sysBP` ($r = 0.787$), and `cigsPerDay` and `currentSmoker` ($r = 0.774$).
+
+```{r missing-3, message = F, warning = F, echo = F, results = F}
 head(filter(cor(data) %>%
            as.data.frame() %>%
            mutate(var1 = rownames(.)) %>%
@@ -83,7 +113,9 @@ head(filter(cor(data) %>%
            group_by(value) %>%
            filter(row_number()==1), value <1))
 ```
-As we can see, ```diaBP``` and ```sysBP``` , as well as ```cigsPerday``` and ```currentSmoker``` are the two most highly correlated pairs of predictors. The method that we utilized for variable selection was stepwise backward AIC. There were two reasons why this method was chosen. Firstly, the LASSO variable selection process, with a lambda produced by k-fold cross validation, did not produce meaningfully better results, especially because the cross-validation process produced an extremely low $\lambda$ value. Secondly, by inspecting the results of backward AIC satisfactorily removing predictors that had little statistical significance in the model.
+
+The method that we utilized for variable selection was stepwise backward AIC. There were two reasons why this method was chosen. Firstly, the LASSO variable selection process, with a lambda produced by k-fold cross validation, did not produce meaningfully better results, especially because the cross-validation process produced an extremely low $\lambda$ value. Secondly, by inspecting the results of backward AIC satisfactorily removing predictors that had little statistical significance in the model. Additionally, the backward AIC results did not contain any pairs of highly correlated predictors.
+
 ```{r model-1, message = F, warning = F, echo = F,results = FALSE}
 data$TenYearCHD <- as.numeric(data$TenYearCHD)
 m_all <- glm(TenYearCHD ~ ., data = data, family = "binomial")
@@ -92,13 +124,50 @@ stepAIC(m_all, scope = list(lower = m_none, upper = m_all),
   data = data, direction = "backward")
 ```
 
+The results of our backward AIC selection process is the following model:
 
-The results of our backward AIC selection process is the following model: 
 ```{r model-2, message = F, warning = F, echo = F}
-glm(TenYearCHD ~ male + age + cigsPerDay + prevalentStroke + 
+m2<- glm(TenYearCHD ~ male + age + cigsPerDay + prevalentStroke + 
     prevalentHyp + totChol + sysBP + glucose, family = "binomial", 
     data = data)
+summary(m2)$coef
 ```
-As we can see, while this refined model contains only eight predictors, most of them are statistically significant, while most of the statistically *insignificant* predictors have been dropped.  
 
+As we can see, while this refined model contains only eight predictors, most of them are statistically significant, while most of the statistically *insignificant* predictors have been dropped.
+
+Now we verify that our data satisfies the assumptions for the Logistic Regression Model. Logistic Regression models must satisfy two assumptions. The first is Linearity. We use an empirical logit plot to demonstrate this - if there are a roughly equal number of points on both sides of the line (for the continuous predictors), as they are below, then we consider this requirement satisfied:
+
+```{r mode-3, message = F, warning = F, echo = F}
+library(Stat2Data)
+emplogitplot1(TenYearCHD ~age ,
+              data = data,
+              ngroups = 20)
+```
+
+Furthermore, we must check the independence assumption. While all samples were taken within the town of Framingham, MA, every individual did not live in the same community; instead, letters were sent out randomly inviting famlies to participate in the study. Since the sampling was relatively random, for our purposes we may say that the independence assumption is satisfied. 
+
+Now, we search for influential values by Cook's distance.
+```{r mode-4, message = F, warning = F, echo = F}
+plot(m2, which = 4, id.n = 3)
+```
+We note that there are 3 high Cook's Distance values which we want to investigate: 
+```{r mode-5, message = F, warning = F, echo = F}
+m2_aug_s <- augment(m2) %>% 
+    mutate(index = 1:n()) 
+m2_aug_s %>% top_n(3, .cooksd)
+```
+However, after plotting the standard residuals, we conclude that there are **no influential values** as none of the high Cook's Distance values had standard residuals greater than ```abs(3)```.
+```{r mode-6, message = F, warning = F, echo = F}
+ggplot(m2_aug_s, aes(index, .std.resid)) + 
+    geom_point(aes(color = TenYearCHD), alpha = .5) +
+    theme_bw()
+```
 ## Key Results and Findings
+Now, we perform some tests on the tests on how well we predicted. Since this is a logistic regression model, in order to interpret our model effectively, we convert the log-odds to an odds ratio. First, we use a threshold of 0.5, where a model prediction of 0.5 or above implies that the individual in question is predicted to be at risk for CHD within 10 years. In context of our investigation, the Binary Classifiers that we care most about are True Positives, True Negatives, False Positives, and False Negatives. However, we would especially like to minimize false negatives, that is, individuals who *truly* are at risk of developing CHD in the next 10 years but are missed by the model. 
+```{r findings-1, message = F, warning = F, echo = F}
+m2_aug <- m2_aug %>% 
+    mutate(prob = exp(.fitted)/(1 + exp(.fitted)),
+           pred_leg = ifelse(prob > 0.5, "At Risk", "Not At Risk")) %>% 
+    dplyr::select(.fitted, prob, pred_leg, TenYearCHD)
+table(m2_aug$pred_leg, m2_aug$TenYearCHD)
+```
