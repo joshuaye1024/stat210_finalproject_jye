@@ -47,10 +47,12 @@ The dataset contains the following predictors:
 * ```BMI```: Body Mass Index (Continuous)
 * ```heartRate```: heart rate (Continuous - In medical research, variables such as heart rate though in fact discrete, yet are considered continuous because of large number of possible values.)
 * ```glucose```: glucose level (Continuous)
-
 For the purposes of the study, as well as our own analysis, the dependant variable is
 
 *```TenYearCHD```: 10 year risk of coronary heart disease CHD (binary: “1”, means “Yes”, “0” means “No”)
+
+## Research Question 
+Our main research question will be to determine which factors are most important for predicting the Ten-Year risk level for Coronary Heart Disease based on the data provided in this dataset. We will investigate model selection and variable selection techniques, then we will thoroughly investigate the model that was produced using our chosen techniques.
 
 ### Exploratory Data Analysis
 
@@ -66,22 +68,19 @@ ggplot(data, aes(x = age, y = TenYearCHD, color = factor(male), group = male)) +
 
 ```
 
-Additionally, we might assume that those who have a high BMI are generally more at risk for CHD. However, we see that there may not be such a strong statistical relationship. While the median BMI for the "at risk" category is marginally higher than the "no risk" category, there are a large large amount of outliers (on the high end) for the "no risk" group.
+Additionally, we might assume that those who have a high BMI are generally more at risk for CHD. However, we see that there may not be such a strong statistical relationship. While the median BMI for the "at risk" category is marginally higher than the "no risk" category, there are a large large amount of outliers (on the high end) for the "no risk" group. On the other hand, the opposite is true for Systolic Blood Pressure, where both the median and outliers (on the high end) are higher for the "at risk" group than the "no risk" group.
 
 ```{r eda-2, message = F, warning = F, echo = F}
-ggplot(data, aes(x = factor(TenYearCHD), y = BMI, group = TenYearCHD)) +
+p1 <- ggplot(data, aes(x = factor(TenYearCHD), y = BMI, group = TenYearCHD)) +
     geom_boxplot() +
     xlab("10-year CHD risk") +
     ylab("BMI")
-```
-
-On the other hand, the opposite is true for Systolic Blood Pressure, where both the median and outliers (on the high end) are higher for the "at risk" group than the "no risk" group.
-
-```{r eda-3, message = F, warning = F,echo=FALSE}
-ggplot(data, aes(x = factor(TenYearCHD), y = sysBP, group = TenYearCHD)) +
+p2<- ggplot(data, aes(x = factor(TenYearCHD), y = sysBP, group = TenYearCHD)) +
     geom_boxplot() +
     xlab("10-year CHD risk") +
     ylab("Systolic Blood Pressure")
+
+grid.arrange(p1, p2, ncol=2)
 ```
 
 Furthermore, we investigate missingness in our model. 
@@ -95,9 +94,6 @@ Based on the graph above, we can see that the `glucose` predictor had the highes
 ```{r missing-2, message = F, warning = F, echo=F}
 data <- data[complete.cases(data), ]
 ```
-
-## Research Question 
-Our main research question will be to determine which factors are most important for predicting the Ten-Year risk level for Coronary Heart Disease based on the data provided in this dataset. We will investigate model selection and variable selection techniques, then we will thoroughly investigate the model that was produced using our chosen techniques.
 
 
 ## Variable Selection and Assumption Testing
@@ -151,7 +147,7 @@ Now, we search for influential values by Cook's distance.
 plot(m2, which = 4, id.n = 3)
 ```
 We note that there are 3 high Cook's Distance values which we want to investigate: 
-```{r mode-5, message = F, warning = F, echo = F}
+```{r mode-5, message = F, warning = F, echo = F, results = F}
 m2_aug_s <- augment(m2) %>% 
     mutate(index = 1:n()) 
 m2_aug_s %>% top_n(3, .cooksd)
@@ -162,12 +158,44 @@ ggplot(m2_aug_s, aes(index, .std.resid)) +
     geom_point(aes(color = TenYearCHD), alpha = .5) +
     theme_bw()
 ```
-## Key Results and Findings
+## Model Testing
 Now, we perform some tests on the tests on how well we predicted. Since this is a logistic regression model, in order to interpret our model effectively, we convert the log-odds to an odds ratio. First, we use a threshold of 0.5, where a model prediction of 0.5 or above implies that the individual in question is predicted to be at risk for CHD within 10 years. In context of our investigation, the Binary Classifiers that we care most about are True Positives, True Negatives, False Positives, and False Negatives. However, we would especially like to minimize false negatives, that is, individuals who *truly* are at risk of developing CHD in the next 10 years but are missed by the model. 
+Thus, for a threshold value of 0.5 we see that there were 512 false negatives, which is a lot.
+ 
 ```{r findings-1, message = F, warning = F, echo = F}
+m2_aug <- augment(m2)
 m2_aug <- m2_aug %>% 
     mutate(prob = exp(.fitted)/(1 + exp(.fitted)),
            pred_leg = ifelse(prob > 0.5, "At Risk", "Not At Risk")) %>% 
     dplyr::select(.fitted, prob, pred_leg, TenYearCHD)
 table(m2_aug$pred_leg, m2_aug$TenYearCHD)
 ```
+
+This implies that we should lower our threshold in order to have a more accurate assessment, even if our false positive rate goes up a bit. If we try evaluate our model with a threshold value of 0.1 for the Ten year CHD risk, then we see
+
+```{r findings-2, message = F, warning = F, echo = F}
+m2_aug <- m2_aug %>% 
+    mutate(prob = exp(.fitted)/(1 + exp(.fitted)),
+           pred_leg = ifelse(prob > 0.1, "At Risk", "Not At Risk")) %>% 
+    dplyr::select(.fitted, prob, pred_leg, TenYearCHD)
+table(m2_aug$pred_leg, m2_aug$TenYearCHD)
+```
+that the number of false negatives drops down significantly. 
+
+Finally, we conclude that our model predicts fairly well, as the area under the ROC curve is ```0.737```.
+```{r findings-3, message = F, warning = F, echo = F}
+m2_aug %>% 
+    roc_auc(
+        truth = as.factor(TenYearCHD),
+        prob, 
+        event_level = "second"
+    )
+```
+
+## Results
+Now that we are confident that our model is not giving out completely garbage results, we can interpret some of our slope coefficients and answer our research question. Since our model is in log-odds, we must exponentiation the slopes in order to get the odds ratio. For instance, exponentiating the coefficient for ```male```, we note that holding all other variables constant, males have $\exp(0.553) \equiv 1.738$ times greater odds than women for acquiring Coronary Heart Disease over a 10 year span. 
+
+## Discussion
+From our model, the being at risk for acquiring Coronary Heart Disease over a ten year period is most strongly statistically associated with (based on $p$-value) being male, being older, smoking cigarettes daily, having high cholesterol, having high Systolic Blood Pressure, and having high blood sugar (glucose). Although we have showed that this model has relatively strong predictive power, there are still some possible limitations of our analysis. For instance, the coefficients were selected using backward stepwise AIC selection. Since this is a greedy algorithm, and not exhaustive, it is possible that there are better sets of predictors that were missed. Furthermore, there are also possible concerns retarding the source of data itself. Because the data was taken from one city in Massachussetts, it is possible that the lifestyle and demographic of the inidivudals of that Framington are not representative of Americans or humans as a whole, but are only locally representative of that area. 
+
+There are many possibilities for future work. Firstly, more predictors could be included. These could include other lifestyle factors, such as exercise duration, average weekly vegetable consumption, etc. that could give more insight into potential factors that could actually be associated with a lowered risk of developing Heart Disease. Secondly, the study could be expanded to different regions of the united states, to see if cultural factors, weather, or other factors play any significant role in the development of heart disease.
